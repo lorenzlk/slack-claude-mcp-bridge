@@ -15,36 +15,42 @@ app = Flask(__name__)
 @app.route("/mcp/slack", methods=["POST"])
 def slack_mcp_webhook():
     data = request.json
-    # Example: Expecting {"user": "U123", "text": "Hello", "channel": "C123"}
+    print("[Claude Bridge] Received data:", data)
     user = data.get("user")
     text = data.get("text")
     channel = data.get("channel")
     if not text or not channel:
+        print("[Claude Bridge] Missing text or channel! Data:", data)
         return jsonify({"error": "Missing text or channel"}), 400
 
-    # Send message to Claude
+    print(f"[Claude Bridge] Sending to Claude: prompt='{text}'")
     claude_response = requests.post(
         CLAUDE_API_URL,
         headers={"Authorization": f"Bearer {CLAUDE_API_KEY}"},
         json={"prompt": text}
     )
+    print(f"[Claude Bridge] Claude API status: {claude_response.status_code}, response: {claude_response.text}")
     if claude_response.status_code != 200:
+        print("[Claude Bridge] Claude API error:", claude_response.text)
         return jsonify({"error": "Claude API error", "details": claude_response.text}), 500
     claude_reply = claude_response.json().get("completion", "(no response)")
 
-    # Send response back to Slack via MCP server
     slack_payload = {
         "channel": channel,
         "text": claude_reply
     }
+    print(f"[Claude Bridge] Sending reply to Slack MCP: {slack_payload}")
     mcp_response = requests.post(
         f"{SLACK_MCP_URL}/send-message",
         headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
         json=slack_payload
     )
+    print(f"[Claude Bridge] Slack MCP status: {mcp_response.status_code}, response: {mcp_response.text}")
     if mcp_response.status_code != 200:
+        print("[Claude Bridge] Slack MCP error:", mcp_response.text)
         return jsonify({"error": "Slack MCP error", "details": mcp_response.text}), 500
 
+    print("[Claude Bridge] Success! Claude reply sent to Slack.")
     return jsonify({"ok": True, "claude_reply": claude_reply})
 
 @app.route("/")

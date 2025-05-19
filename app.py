@@ -24,16 +24,32 @@ def slack_mcp_webhook():
         return jsonify({"error": "Missing text or channel"}), 400
 
     print(f"[Claude Bridge] Sending to Claude: prompt='{text}'")
+    claude_headers = {
+        "x-api-key": CLAUDE_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json"
+    }
+    claude_payload = {
+        "model": "claude-3-haiku-20240307",
+        "max_tokens": 1024,
+        "messages": [
+            {"role": "user", "content": text}
+        ]
+    }
     claude_response = requests.post(
         CLAUDE_API_URL,
-        headers={"Authorization": f"Bearer {CLAUDE_API_KEY}"},
-        json={"prompt": text}
+        headers=claude_headers,
+        json=claude_payload
     )
     print(f"[Claude Bridge] Claude API status: {claude_response.status_code}, response: {claude_response.text}")
     if claude_response.status_code != 200:
         print("[Claude Bridge] Claude API error:", claude_response.text)
         return jsonify({"error": "Claude API error", "details": claude_response.text}), 500
-    claude_reply = claude_response.json().get("completion", "(no response)")
+    try:
+        claude_reply = claude_response.json()["content"][0]["text"]
+    except Exception as e:
+        print("[Claude Bridge] Error parsing Claude response:", e)
+        claude_reply = "(no response)"
 
     slack_payload = {
         "channel": channel,
